@@ -1,0 +1,5 @@
+video_id,views,likes,comments,watch_minutes,engagement_rate,video_url,channel
+12345,1000,100,50,500,0.1,https://youtube.com/watch?v=12345,Channel A
+67890,2000,200,100,1000,0.15,https://youtube.com/watch?v=67890,Channel B
+54321,3000,300,150,1500,0.2,https://youtube.com/watch?v=54321,Channel C
+98765,4000,400,200,2000,0.25,https://youtube.com/watch?v=98765,Channel D
