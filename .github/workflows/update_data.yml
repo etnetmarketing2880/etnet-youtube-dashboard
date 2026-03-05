@@ -1,1 +1,56 @@
+name: Update YouTube Analytics Data
 
+on:
+  schedule:
+    - cron: "0 1 * * *"  # 每日 HKT 09:00（UTC 01:00）自動跑
+  workflow_dispatch:       # 手動觸發
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install google-auth google-auth-oauthlib google-api-python-client pandas python-dateutil
+
+      - name: Write credentials
+        env:
+          TOKEN_ETNET:    ${{ secrets.TOKEN_ETNET }}
+          TOKEN_25DEG:    ${{ secrets.TOKEN_25DEG }}
+          TOKEN_HEALTH:   ${{ secrets.TOKEN_HEALTH }}
+          SECRET_ETNET:   ${{ secrets.SECRET_ETNET }}
+          SECRET_25DEG:   ${{ secrets.SECRET_25DEG }}
+          SECRET_HEALTH:  ${{ secrets.SECRET_HEALTH }}
+        run: |
+          echo "$TOKEN_ETNET"   | base64 -d > token_etnet.pickle
+          echo "$TOKEN_25DEG"   | base64 -d > token_25度生活.pickle
+          echo "$TOKEN_HEALTH"  | base64 -d > token_健康好人生.pickle
+          echo "$SECRET_ETNET"  > client_secret_etnet.json
+          echo "$SECRET_25DEG"  > client_secret_25degrees.json
+          echo "$SECRET_HEALTH" > client_secret_health.json
+
+      - name: Run analytics script
+        run: python etnet_youtube_analytics.py
+
+      - name: Move CSVs to data folder
+        run: |
+          mkdir -p data
+          mv channel_overview.csv     data/
+          mv daily_analytics.csv      data/
+          mv monthly_analytics.csv    data/
+          mv yearly_analytics.csv     data/
+          mv top_videos_this_month.csv data/
+
+      - name: Commit and push
+        run: |
+          git config user.name  "github-actions"
+          git config user.email "actions@github.com"
+          git add data/
+          git diff --staged --quiet || git commit -m "Auto-update YouTube data $(date +%Y-%m-%d)"
+          git push
