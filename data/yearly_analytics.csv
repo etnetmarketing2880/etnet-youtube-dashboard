@@ -1,1 +1,7 @@
-Year,Channel A,Channel B,Channel C\n2025,15000,12000,9000\n2026,18000,16000,11000
+year,channel,views,subscribers
+2025,Channel A,15000,1500
+2025,Channel B,12000,1200
+2025,Channel C,9000,900
+2026,Channel A,18000,1800
+2026,Channel B,16000,1600
+2026,Channel C,11000,1100
