@@ -28,7 +28,7 @@ if __name__ == "__main__":
     credentials = youtube_credentials.authenticate()
     analytics = YouTubeAnalytics(credentials)
     # Example channel IDs
-    channels = ['UC_x5XG1OV2P6uZZ5FSM9Ttw', 'UC_x5XG1OV2P6uZZ5FSM9Tt']
+    channels = ['UC_x5XG1OV2P6uZZ5FSM9Ttw', 'UC_y5XG1OV2P6uZZ5FSM9Ttw']
     for channel in channels:
         data = analytics.fetch_analytics(channel)
         print(data)

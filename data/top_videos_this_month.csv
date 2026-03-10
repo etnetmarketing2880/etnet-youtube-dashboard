@@ -1,5 +1,31 @@
-video_id,views,likes,comments,watch_minutes,engagement_rate,video_url,channel
-12345,1000,100,50,500,0.1,https://youtube.com/watch?v=12345,Channel A
-67890,2000,200,100,1000,0.15,https://youtube.com/watch?v=67890,Channel B
-54321,3000,300,150,1500,0.2,https://youtube.com/watch?v=54321,Channel C
-98765,4000,400,200,2000,0.25,https://youtube.com/watch?v=98765,Channel D
+﻿video_id,views,likes,comments,watch_minutes,engagement_rate,video_url,channel
+5O1HDQlR5Js,13861,475,5,219432,3.46,https://youtu.be/5O1HDQlR5Js,etnet
+rF2_DwZ-t_4,5824,230,0,81087,3.95,https://youtu.be/rF2_DwZ-t_4,etnet
+vg0lkQA6ln0,4812,120,1,33782,2.51,https://youtu.be/vg0lkQA6ln0,etnet
+CT8XqdwJ240,2886,107,0,27513,3.71,https://youtu.be/CT8XqdwJ240,etnet
+2BfTvk3I_Zk,2695,43,3,25240,1.71,https://youtu.be/2BfTvk3I_Zk,etnet
+I7SLcJDPMnA,1156,25,0,1582,2.16,https://youtu.be/I7SLcJDPMnA,etnet
+8rxjyB3ZZF4,1032,29,0,7232,2.81,https://youtu.be/8rxjyB3ZZF4,etnet
+M6ghULiPJrU,975,10,0,3934,1.03,https://youtu.be/M6ghULiPJrU,etnet
+zIWkkJ1zGYI,914,18,1,1543,2.08,https://youtu.be/zIWkkJ1zGYI,etnet
+pulA7vC30fc,503,10,0,4567,1.99,https://youtu.be/pulA7vC30fc,etnet
+0teUnzJtac0,436,6,1,1994,1.61,https://youtu.be/0teUnzJtac0,25度生活
+-clcX4GXhFM,221,4,0,226,1.81,https://youtu.be/-clcX4GXhFM,25度生活
+41SPHdrf9NQ,165,8,0,1758,4.85,https://youtu.be/41SPHdrf9NQ,25度生活
+2l1UQqUB2As,151,5,0,650,3.31,https://youtu.be/2l1UQqUB2As,25度生活
+opW2IAwJQ-0,150,3,0,697,2.0,https://youtu.be/opW2IAwJQ-0,25度生活
+j9yoHSlQS14,138,1,0,135,0.72,https://youtu.be/j9yoHSlQS14,25度生活
+CQgiBjehDeg,108,9,0,755,8.33,https://youtu.be/CQgiBjehDeg,25度生活
+1AcoU_jRw9A,101,3,0,733,2.97,https://youtu.be/1AcoU_jRw9A,25度生活
+4N_0KgfkEag,75,3,0,396,4.0,https://youtu.be/4N_0KgfkEag,25度生活
+4cCzuZ2RMOc,73,0,0,54,0.0,https://youtu.be/4cCzuZ2RMOc,25度生活
+PyP9wYwGJfI,14335,2,0,43376,0.01,https://youtu.be/PyP9wYwGJfI,健康好人生
+4OqnU3HqEe0,1650,32,2,5576,2.06,https://youtu.be/4OqnU3HqEe0,健康好人生
+bO8yhbjS23I,1241,10,0,3491,0.81,https://youtu.be/bO8yhbjS23I,健康好人生
+th-d29xhTPY,1004,45,0,5255,4.48,https://youtu.be/th-d29xhTPY,健康好人生
+mAK92bpUmoI,739,5,1,3601,0.81,https://youtu.be/mAK92bpUmoI,健康好人生
+VuXlru1XvSk,544,9,0,3773,1.65,https://youtu.be/VuXlru1XvSk,健康好人生
+KALdL8lqtVw,399,10,1,2624,2.76,https://youtu.be/KALdL8lqtVw,健康好人生
+aRt-E18bDng,375,3,0,3044,0.8,https://youtu.be/aRt-E18bDng,健康好人生
+ul5jGx6I7rk,370,0,0,1917,0.0,https://youtu.be/ul5jGx6I7rk,健康好人生
+vjWqBF98H2o,370,6,0,1568,1.62,https://youtu.be/vjWqBF98H2o,健康好人生
