@@ -1,29 +1,31 @@
-import google.auth
-import google.auth.transport.requests
+"""
+ETNet YouTube Analytics Data Fetcher
+====================================
+此腳本用於從 YouTube Analytics API 獲取頻道數據，包括：
+- 頻道概覽
+- 每日數據
+- 每月數據
+- 年度數據
+- 熱門影片
+
+作者: ETNet Marketing Team
+"""
+
+# ===== 必要的 imports =====
+import os
+import pickle
+import sys
+import traceback
+from datetime import datetime, timedelta
+
+import pandas as pd
+from dateutil.relativedelta import relativedelta
 from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
 
-class YouTubeCredentials:
-    def __init__(self, client_secrets_file, scopes):
-        self.client_secrets_file = client_secrets_file
-        self.scopes = scopes
 
-    def authenticate(self):
-        credentials = Credentials.from_authorized_user_file(self.client_secrets_file, self.scopes)
-        return credentials
-
-class YouTubeAnalytics:
-    def __init__(self, credentials):
-        self.credentials = credentials
-
-    def fetch_analytics(self, channel_id):
-        # Simulate fetching analytics data
-        # This should include the actual API call to fetch analytics data 
-        # For now, it returns dummy data
-        return {"channel_id": channel_id, "views": 1000, "subscribers": 200} 
-
-if __name__ == "__main__":
-    client_secrets = 'path/to/client_secrets.json'  # Update with your client secrets path
-    scopes = ['https://www.googleapis.com/auth/yt-analytics.readonly']
+# ===== 配置 =====
 CHANNELS = {
     "etnet": {
         "token_file": "token_etnet.pickle",
@@ -42,11 +44,24 @@ CHANNELS = {
     },
 }
 
-SCOPES = ["https://www.googleapis.com/auth/yt-analytics.readonly", "https://www.googleapis.com/auth/youtube.readonly"]
+SCOPES = [
+    "https://www.googleapis.com/auth/yt-analytics.readonly",
+    "https://www.googleapis.com/auth/youtube.readonly",
+]
 
+
+# ===== 函數定義 =====
 
 def get_credentials(token_file: str) -> Credentials:
-    """從 pickle 文件載入 credentials"""
+    """
+    從 pickle 文件載入 credentials
+
+    Args:
+        token_file: pickle 憑證文件的路徑
+
+    Returns:
+        Credentials 對象，如果載入失敗則返回 None
+    """
     creds = None
 
     if os.path.exists(token_file):
@@ -55,14 +70,39 @@ def get_credentials(token_file: str) -> Credentials:
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-            with open(token_file, "wb") as token:
-                pickle.dump(creds, token)
+            try:
+                creds.refresh(Request())
+                with open(token_file, "wb") as token:
+                    pickle.dump(creds, token)
+            except Exception as e:
+                print(f"  ❌ 刷新憑證失敗: {e}")
+                return None
 
     return creds
 
 
+def get_video_title(youtube, video_id: str) -> str:
+    """
+    獲取影片標題
+
+    Args:
+        youtube: YouTube API 服務對象
+        video_id: 影片 ID
+
+    Returns:
+        影片標題，如果獲取失敗則返回 video_id
+    """
+    try:
+        response = youtube.videos().list(part="snippet", id=video_id).execute()
+        if response.get("items"):
+            return response["items"][0]["snippet"]["title"]
+    except Exception:
+        pass
+    return video_id
+
+
 def main():
+    """主程式 - 獲取所有頻道的 YouTube Analytics 數據"""
     print("=" * 60)
     print("ETNet YouTube Analytics Data Fetcher")
     print(f"執行時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -218,8 +258,13 @@ def main():
                         likes = int(row[3])
                         comments = int(row[4])
                         engagement_rate = (likes + comments) / views if views > 0 else 0
+
+                        # 獲取影片標題
+                        video_title = get_video_title(youtube, video_id)
+
                         all_top_videos.append({
                             "video_id": video_id,
+                            "video_title": video_title,
                             "views": views,
                             "watch_minutes": int(row[2]),
                             "likes": likes,
@@ -242,35 +287,39 @@ def main():
     print("生成 CSV 文件...")
     print("=" * 60)
 
+    # 確保 data 目錄存在
+    os.makedirs("data", exist_ok=True)
+
     # 確保至少有基本 CSV 檔案
     if all_channel_overview:
-        pd.DataFrame(all_channel_overview).to_csv("channel_overview.csv", index=False)
-        print(f"  ✅ channel_overview.csv")
+        pd.DataFrame(all_channel_overview).to_csv("data/channel_overview.csv", index=False)
+        print(f"  ✅ data/channel_overview.csv")
     else:
-        # 保留舊檔案或創建空的
         print("  ⚠️ 沒有頻道概覽數據，保留現有檔案")
 
     if all_daily_data:
-        pd.DataFrame(all_daily_data).to_csv("daily_analytics.csv", index=False)
-        print(f"  ✅ daily_analytics.csv")
+        pd.DataFrame(all_daily_data).to_csv("data/daily_analytics.csv", index=False)
+        print(f"  ✅ data/daily_analytics.csv")
     else:
         print("  ⚠️ 沒有每日數據，保留現有檔案")
 
     if all_monthly_data:
-        pd.DataFrame(all_monthly_data).to_csv("monthly_analytics.csv", index=False)
-        print(f"  ✅ monthly_analytics.csv")
+        pd.DataFrame(all_monthly_data).to_csv("data/monthly_analytics.csv", index=False)
+        print(f"  ✅ data/monthly_analytics.csv")
     else:
         print("  ⚠️ 沒有每月數據，保留現有檔案")
 
     if all_yearly_data:
-        pd.DataFrame(all_yearly_data).to_csv("yearly_analytics.csv", index=False)
-        print(f"  ✅ yearly_analytics.csv")
+        pd.DataFrame(all_yearly_data).to_csv("data/yearly_analytics.csv", index=False)
+        print(f"  ✅ data/yearly_analytics.csv")
     else:
         print("  ⚠️ 沒有年度數據，保留現有檔案")
 
     if all_top_videos:
-        pd.DataFrame(all_top_videos).sort_values(["channel", "views"], ascending=[True, False]).to_csv("top_videos_this_month.csv", index=False)
-        print(f"  ✅ top_videos_this_month.csv")
+        pd.DataFrame(all_top_videos).sort_values(
+            ["channel", "views"], ascending=[True, False]
+        ).to_csv("data/top_videos_this_month.csv", index=False)
+        print(f"  ✅ data/top_videos_this_month.csv")
     else:
         print("  ⚠️ 沒有熱門影片數據，保留現有檔案")
 
@@ -282,6 +331,7 @@ def main():
     return len(all_channel_overview) > 0
 
 
+# ===== 執行入口 =====
 if __name__ == "__main__":
     success = main()
     sys.exit(0 if success else 1)
