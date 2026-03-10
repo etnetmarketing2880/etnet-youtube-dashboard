@@ -1,343 +1,334 @@
-import streamlit as st
+"""
+ETNet YouTube Analytics Data Fetcher
+====================================
+此腳本用於從 YouTube Analytics API 獲取頻道數據，包括：
+- 頻道概覽
+- 每日數據
+- 每月數據
+- 年度數據
+- 熱門影片
+
+作者: ETNet Marketing Team
+"""
+
+# ===== 必要的 imports =====
+import os
+import pickle
+import sys
+import traceback
+from datetime import datetime, timedelta
+
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-from auth_manager import AuthManager
-from datetime import datetime
+from dateutil.relativedelta import relativedelta
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
 
-st.set_page_config(
-    page_title="etnet YouTube Dashboard",
-    layout="wide",
-    initial_sidebar_state="expanded",
-    menu_items={'Get help': None, 'Report a bug': None, 'About': None}
-)
 
-# 自定義CSS樣式
-st.markdown("""
-<style>
-    :root {
-        --primary-color: #FF0000;
-        --secondary-color: #282D33;
-        --accent-color: #E60000;
-    }
+# ===== 配置 =====
+CHANNELS = {
+    "etnet": {
+        "token_file": "token_etnet.pickle",
+        "secret_file": "client_secret_etnet.json",
+        "channel_name": "etnet",
+    },
+    "25度生活": {
+        "token_file": "token_25度生活.pickle",
+        "secret_file": "client_secret_25degrees.json",
+        "channel_name": "25度生活",
+    },
+    "健康好人生": {
+        "token_file": "token_健康好人生.pickle",
+        "secret_file": "client_secret_health.json",
+        "channel_name": "健康好人生",
+    },
+}
+
+SCOPES = [
+    "https://www.googleapis.com/auth/yt-analytics.readonly",
+    "https://www.googleapis.com/auth/youtube.readonly",
+]
+
+
+# ===== 函數定義 =====
+
+def get_credentials(token_file: str) -> Credentials:
+    """
+    從 pickle 文件載入 credentials
     
-    .main {
-        background-color: #f5f5f5;
-    }
-    
-    .metric-card {
-        background: white;
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    
-    h1, h2, h3 {
-        color: #282D33;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# 初始化認證管理器
-auth_manager = AuthManager()
-
-# 初始化session state
-if 'authenticated' not in st.session_state:
-    st.session_state.authenticated = False
-if 'username' not in st.session_state:
-    st.session_state.username = None
-if 'user_role' not in st.session_state:
-    st.session_state.user_role = None
-
-# ═══════════════════════════════════════════════════════════
-# 側邊欄設計
-# ═══════════════════════════════════════════════════════════
-with st.sidebar:
-    st.markdown("### 🔐 用戶登入")
-    
-    if not st.session_state.authenticated:
-        tab1, tab2 = st.tabs(["登入", "註冊"])
+    Args:
+        token_file: pickle 憑證文件的路徑
         
-        with tab1:
-            st.subheader("登入帳戶")
-            username = st.text_input("用戶名", key="login_user")
-            password = st.text_input("密碼", type="password", key="login_pass")
-            
-            if st.button("🔓 登入", use_container_width=True, type="primary"):
-                if auth_manager.authenticate(username, password):
-                    st.session_state.authenticated = True
-                    st.session_state.username = username
-                    st.session_state.user_role = auth_manager.get_user_role(username)
-                    st.success("登入成功！")
-                    st.rerun()
-                else:
-                    st.error("用戶名或密碼錯誤")
-        
-        with tab2:
-            st.subheader("創建新帳戶")
-            new_user = st.text_input("新用戶名", key="reg_user")
-            new_pass = st.text_input("密碼（最少6位）", type="password", key="reg_pass")
-            confirm_pass = st.text_input("確認密碼", type="password", key="reg_confirm")
-            
-            if st.button("✅ 註冊", use_container_width=True):
-                if new_pass != confirm_pass:
-                    st.error("密碼不相符")
-                else:
-                    success, msg = auth_manager.register(new_user, new_pass)
-                    if success:
-                        st.success(msg)
-                    else:
-                        st.error(msg)
+    Returns:
+        Credentials 對象，如果載入失敗則返回 None
+    """
+    creds = None
+
+    if os.path.exists(token_file):
+        with open(token_file, "rb") as token:
+            creds = pickle.load(token)
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            try:
+                creds.refresh(Request())
+                with open(token_file, "wb") as token:
+                    pickle.dump(creds, token)
+            except Exception as e:
+                print(f"  ❌ 刷新憑證失敗: {e}")
+                return None
+
+    return creds
+
+
+def get_video_title(youtube, video_id: str) -> str:
+    """
+    獲取影片標題
     
+    Args:
+        youtube: YouTube API 服務對象
+        video_id: 影片 ID
+        
+    Returns:
+        影片標題，如果獲取失敗則返回 video_id
+    """
+    try:
+        response = youtube.videos().list(part="snippet", id=video_id).execute()
+        if response.get("items"):
+            return response["items"][0]["snippet"]["title"]
+    except Exception:
+        pass
+    return video_id
+
+
+def main():
+    """主程式 - 獲取所有頻道的 YouTube Analytics 數據"""
+    print("=" * 60)
+    print("ETNet YouTube Analytics Data Fetcher")
+    print(f"執行時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("=" * 60)
+
+    # 計算日期範圍
+    today = datetime.now()
+    start_date_daily = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+    end_date_daily = today.strftime("%Y-%m-%d")
+    start_date_monthly = (today - relativedelta(months=15)).replace(day=1).strftime("%Y-%m-%d")
+    end_date_monthly = today.strftime("%Y-%m-%d")
+    start_date_yearly = "2025-01-01"
+    end_date_yearly = today.strftime("%Y-%m-%d")
+    month_start = today.replace(day=1).strftime("%Y-%m-%d")
+
+    # 收集所有頻道數據
+    all_channel_overview = []
+    all_daily_data = []
+    all_monthly_data = []
+    all_yearly_data = []
+    all_top_videos = []
+
+    for key, config in CHANNELS.items():
+        print(f"\n處理頻道: {config['channel_name']}")
+        token_file = config["token_file"]
+
+        if not os.path.exists(token_file):
+            print(f"  ⚠️ Token 文件不存在: {token_file}，跳過此頻道")
+            continue
+
+        try:
+            # 載入 credentials
+            creds = get_credentials(token_file)
+            if not creds:
+                print(f"  ❌ 無法載入 credentials")
+                continue
+
+            # 建立 API 服務
+            analytics = build("youtubeAnalytics", "v2", credentials=creds)
+            youtube = build("youtube", "v3", credentials=creds)
+
+            # 獲取頻道 ID
+            response = youtube.channels().list(part="id,snippet,statistics", mine=True).execute()
+            if not response.get("items"):
+                print(f"  ❌ 無法獲取頻道信息")
+                continue
+
+            channel_id = response["items"][0]["id"]
+            channel_name = config["channel_name"]
+            stats = response["items"][0].get("statistics", {})
+            print(f"  頻道 ID: {channel_id}")
+
+            # 1. 頻道概覽
+            all_channel_overview.append({
+                "channel_id": channel_id,
+                "channel_name": channel_name,
+                "subscribers": int(stats.get("subscriberCount", 0)),
+                "total_views": int(stats.get("viewCount", 0)),
+                "video_count": int(stats.get("videoCount", 0)),
+                "channel_label": channel_name,
+            })
+            print("  ✅ 頻道概覽")
+
+            # 2. 每日數據
+            try:
+                daily_resp = analytics.reports().query(
+                    ids=f"channel=={channel_id}",
+                    metrics="views,estimatedMinutesWatched,subscribersGained,subscribersLost",
+                    dimensions="day",
+                    startDate=start_date_daily,
+                    endDate=end_date_daily,
+                ).execute()
+                if daily_resp.get("rows"):
+                    for row in daily_resp["rows"]:
+                        all_daily_data.append({
+                            "date": row[0],
+                            "channel": channel_name,
+                            "views": int(row[1]),
+                            "watch_minutes": int(row[2]),
+                            "subscribers_gained": int(row[3]),
+                            "subscribers_lost": int(row[4]),
+                        })
+                    print(f"  ✅ 每日數據 ({len(daily_resp['rows'])} 天)")
+            except Exception as e:
+                print(f"  ⚠️ 每日數據錯誤: {e}")
+
+            # 3. 每月數據
+            try:
+                monthly_resp = analytics.reports().query(
+                    ids=f"channel=={channel_id}",
+                    metrics="views,estimatedMinutesWatched,likes,comments,subscribersGained",
+                    dimensions="month",
+                    startDate=start_date_monthly,
+                    endDate=end_date_monthly,
+                ).execute()
+                if monthly_resp.get("rows"):
+                    for row in monthly_resp["rows"]:
+                        views = int(row[1])
+                        likes = int(row[3])
+                        comments = int(row[4])
+                        engagement_rate = (likes + comments) / views if views > 0 else 0
+                        all_monthly_data.append({
+                            "month": row[0],
+                            "channel": channel_name,
+                            "views": views,
+                            "watch_minutes": int(row[2]),
+                            "likes": likes,
+                            "comments": comments,
+                            "subscribers_gained": int(row[5]),
+                            "engagement_rate": round(engagement_rate, 4),
+                        })
+                    print(f"  ✅ 每月數據 ({len(monthly_resp['rows'])} 月)")
+            except Exception as e:
+                print(f"  ⚠️ 每月數據錯誤: {e}")
+
+            # 4. 年度數據
+            try:
+                yearly_resp = analytics.reports().query(
+                    ids=f"channel=={channel_id}",
+                    metrics="views,estimatedMinutesWatched,subscribersGained",
+                    dimensions="year",
+                    startDate=start_date_yearly,
+                    endDate=end_date_yearly,
+                ).execute()
+                if yearly_resp.get("rows"):
+                    for row in yearly_resp["rows"]:
+                        all_yearly_data.append({
+                            "year": int(row[0]),
+                            "channel": channel_name,
+                            "views": int(row[1]),
+                            "watch_minutes": int(row[2]),
+                            "subscribers": int(row[3]),
+                        })
+                    print(f"  ✅ 年度數據 ({len(yearly_resp['rows'])} 年)")
+            except Exception as e:
+                print(f"  ⚠️ 年度數據錯誤: {e}")
+
+            # 5. 熱門影片
+            try:
+                top_resp = analytics.reports().query(
+                    ids=f"channel=={channel_id}",
+                    metrics="views,estimatedMinutesWatched,likes,comments",
+                    dimensions="video",
+                    startDate=month_start,
+                    endDate=end_date_daily,
+                    maxResults=10,
+                    sort="-views",
+                ).execute()
+                if top_resp.get("rows"):
+                    for row in top_resp["rows"]:
+                        video_id = row[0]
+                        views = int(row[1])
+                        likes = int(row[3])
+                        comments = int(row[4])
+                        engagement_rate = (likes + comments) / views if views > 0 else 0
+                        
+                        # 獲取影片標題
+                        video_title = get_video_title(youtube, video_id)
+                        
+                        all_top_videos.append({
+                            "video_id": video_id,
+                            "video_title": video_title,
+                            "views": views,
+                            "watch_minutes": int(row[2]),
+                            "likes": likes,
+                            "comments": comments,
+                            "engagement_rate": round(engagement_rate, 4),
+                            "video_url": f"https://youtube.com/watch?v={video_id}",
+                            "channel": channel_name,
+                        })
+                    print(f"  ✅ 熱門影片 ({len(top_resp['rows'])} 部)")
+            except Exception as e:
+                print(f"  ⚠️ 熱門影片錯誤: {e}")
+
+        except Exception as e:
+            print(f"  ❌ 錯誤: {e}")
+            traceback.print_exc()
+            continue
+
+    # ── 生成 CSV 文件 ────────────────────────────────────────
+    print("\n" + "=" * 60)
+    print("生成 CSV 文件...")
+    print("=" * 60)
+
+    # 確保至少有基本 CSV 檔案
+    if all_channel_overview:
+        pd.DataFrame(all_channel_overview).to_csv("channel_overview.csv", index=False)
+        print(f"  ✅ channel_overview.csv")
     else:
-        # 已登入狀態
-        st.markdown(f"### 👤 {st.session_state.username}")
-        st.markdown(f"**身份：** {st.session_state.user_role}")
-        
-        st.divider()
-        
-        if st.button("📤 登出", use_container_width=True, type="secondary"):
-            st.session_state.authenticated = False
-            st.session_state.username = None
-            st.session_state.user_role = None
-            st.success("已登出")
-            st.rerun()
-        
-        # 頁腳
-        st.markdown("---")
-        st.caption(f"登入時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print("  ⚠️ 沒有頻道概覽數據，保留現有檔案")
 
-# ═══════════════════════════════════════════════════════════
-# 登入頁面
-# ═══════════════════════════════════════════════════════════
-if not st.session_state.authenticated:
-    st.markdown("""
-    <div style='text-align: center; padding: 50px 20px;'>
-        <h1 style='font-size: 3em; margin-bottom: 10px; color: #FF0000;'>📺 etnet YouTube</h1>
-        <h2 style='color: #282D33; font-size: 2em;'>Analytics Dashboard</h2>
-        <p style='font-size: 1.2em; color: #666;'>實時YouTube頻道數據分析平台</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.info("👈 請在左側邊欄登入或註冊新帳戶", icon="ℹ️")
-    
-    st.markdown("---")
-    
-    # 功能介紹
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown("""
-        #### 📊 實時數據
-        - 頻道概覽統計
-        - 訂閱數增長趨勢
-        - 觀看次數分析
-        """)
-    with col2:
-        st.markdown("""
-        #### 💡 智能分析
-        - 月度趨勢對比
-        - 年度匯總統計
-        - Engagement Rate追蹤
-        """)
-    with col3:
-        st.markdown("""
-        #### 🏆 內容分析
-        - Top 影片排行
-        - 互動率排名
-        - 內容表現評估
-        """)
+    if all_daily_data:
+        pd.DataFrame(all_daily_data).to_csv("daily_analytics.csv", index=False)
+        print(f"  ✅ daily_analytics.csv")
+    else:
+        print("  ⚠️ 沒有每日數據，保留現有檔案")
 
-else:
-    # ═══════════════════════════════════════════════════════════
-    # 主要Dashboard內容
-    # ═══════════════════════════════════════════════════════════
-    
-    # 加載數據
-    @st.cache_data
-    def load_data():
-        overview = pd.read_csv("data/channel_overview.csv")
-        monthly  = pd.read_csv("data/monthly_analytics.csv")
-        yearly   = pd.read_csv("data/yearly_analytics.csv")
-        top      = pd.read_csv("data/top_videos_this_month.csv")
-        # 確保數字欄位係數字
-        for col in ["views","likes","comments","watch_minutes"]:
-            for df in [monthly, yearly, top]:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
-        return overview, monthly, yearly, top
+    if all_monthly_data:
+        pd.DataFrame(all_monthly_data).to_csv("monthly_analytics.csv", index=False)
+        print(f"  ✅ monthly_analytics.csv")
+    else:
+        print("  ⚠️ 沒有每月數據，保留現有檔案")
 
-    overview, monthly, yearly, top = load_data()
-    
-    # 主標題
-    st.markdown("""
-    <div style='text-align: center; padding: 20px;'>
-        <h1 style='color: #FF0000; margin-bottom: 5px;'>📺 YouTube Analytics Dashboard</h1>
-        <p style='color: #666;'>數據來源：YouTube Analytics API｜每日自動更新</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.divider()
-    
-    # 標籤頁設計
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 概覽", "📈 趨勢分析", "📅 年度匯總", "🏆 Top 影片"])
-    
-    # ─────────────────────────────────────────────────────────
-    # TAB 1: 頻道概覽
-    # ─────────────────────────────────────────────────────────
-    with tab1:
-        st.header("頻道概覽")
-        st.markdown("實時頻道統計數據")
-        
-        cols = st.columns(len(overview))
-        for i, row in overview.iterrows():
-            name = row.get("channel_name") or row.get("channel_label","")
-            with cols[i]:
-                st.markdown(f"""
-                <div style='background: white; padding: 20px; border-radius: 10px; 
-                           box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
-                    <h3 style='color: #FF0000;'>{name}</h3>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("訂閱數", f"{int(row['subscribers']):,}", 
-                             delta=None, delta_color="off")
-                with col2:
-                    st.metric("影片數量", f"{int(row['video_count']):,}",
-                             delta=None, delta_color="off")
-                
-                st.metric("總觀看次數", f"{int(row['total_views']):,}",
-                         delta=None, delta_color="off")
-    
-    # ─────────────────────────────────────────────────────────
-    # TAB 2: 月度趨勢
-    # ─────────────────────────────────────────────────────────
-    with tab2:
-        st.header("月度趨勢分析")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("每月觀看次數")
-            monthly["month"] = monthly["month"].astype(str)
-            fig = px.line(
-                monthly, 
-                x="month", 
-                y="views", 
-                color="channel",
-                markers=True, 
-                title="Monthly Views by Channel",
-                line_shape="spline"
-            )
-            fig.update_layout(
-                template="plotly_white",
-                hovermode="x unified",
-                height=400
-            )
-            fig.update_xaxes(tickangle=45)
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-        
-        with col2:
-            st.subheader("每月Engagement Rate")
-            fig2 = px.bar(
-                monthly, 
-                x="month", 
-                y="engagement_rate", 
-                color="channel",
-                barmode="group", 
-                title="Engagement Rate (%) by Month"
-            )
-            fig2.update_layout(
-                template="plotly_white",
-                hovermode="x unified",
-                height=400
-            )
-            fig2.update_xaxes(tickangle=45)
-            st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
-    
-    # ─────────────────────────────────────────────────────────
-    # TAB 3: 年度匯總
-    # ─────────────────────────────────────────────────────────
-    with tab3:
-        st.header("年度統計匯總")
-        yearly["year"] = yearly["year"].astype(str)
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("年度觀看次數")
-            fig3 = px.bar(
-                yearly, 
-                x="year", 
-                y="views", 
-                color="channel",
-                barmode="group", 
-                title="Yearly Views"
-            )
-            fig3.update_layout(
-                template="plotly_white",
-                hovermode="x unified",
-                height=400
-            )
-            st.plotly_chart(fig3, use_container_width=True, config={"displayModeBar": False})
-        
-        with col2:
-            st.subheader("年度Engagement Rate")
-            fig4 = px.bar(
-                yearly, 
-                x="year", 
-                y="engagement_rate", 
-                color="channel",
-                barmode="group", 
-                title="Yearly Engagement Rate (%)"
-            )
-            fig4.update_layout(
-                template="plotly_white",
-                hovermode="x unified",
-                height=400
-            )
-            st.plotly_chart(fig4, use_container_width=True, config={"displayModeBar": False})
-    
-    # ─────────────────────────────────────────────────────────
-    # TAB 4: Top 影片
-    # ─────────────────────────────────────────────────────────
-    with tab4:
-        st.header("本月最受歡迎影片 Top 10")
-        
-        channels = top["channel"].unique().tolist()
-        selected = st.selectbox("選擇頻道", channels, key="channel_select")
-        
-        df_top = top[top["channel"] == selected].copy().reset_index(drop=True)
-        df_top.index += 1
-        
-        # 創建更好看的表格
-        display_df = pd.DataFrame({
-            "排名": range(1, len(df_top) + 1),
-            "影片ID": df_top["video_id"],
-            "觀看次數": df_top["views"].apply(lambda x: f"{int(x):,}"),
-            "讚數": df_top["likes"].apply(lambda x: f"{int(x):,}"),
-            "評論": df_top["comments"].apply(lambda x: f"{int(x):,}"),
-            "Engagement Rate": df_top["engagement_rate"].apply(lambda x: f"{x:.2f}%")
-        })
-        
-        st.dataframe(
-            display_df,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "排名": st.column_config.NumberColumn(width=50),
-            }
-        )
-        
-        # 影片連結
-        st.markdown("**觀看影片：**")
-        cols = st.columns(5)
-        for idx, (i, row) in enumerate(df_top.head(10).iterrows()):
-            with cols[idx % 5]:
-                st.markdown(
-                    f"[影片 {i+1}]({row['video_url']})",
-                    unsafe_allow_html=True
-                )
+    if all_yearly_data:
+        pd.DataFrame(all_yearly_data).to_csv("yearly_analytics.csv", index=False)
+        print(f"  ✅ yearly_analytics.csv")
+    else:
+        print("  ⚠️ 沒有年度數據，保留現有檔案")
+
+    if all_top_videos:
+        pd.DataFrame(all_top_videos).sort_values(
+            ["channel", "views"], ascending=[True, False]
+        ).to_csv("top_videos_this_month.csv", index=False)
+        print(f"  ✅ top_videos_this_month.csv")
+    else:
+        print("  ⚠️ 沒有熱門影片數據，保留現有檔案")
+
+    print("\n" + "=" * 60)
+    print("✅ 數據更新完成！")
+    print("=" * 60)
+
+    # 返回成功與否
+    return len(all_channel_overview) > 0
+
+
+# ===== 執行入口 =====
+if __name__ == "__main__":
+    success = main()
+    sys.exit(0 if success else 1)
