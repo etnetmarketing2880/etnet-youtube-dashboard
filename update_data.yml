@@ -19,7 +19,7 @@ jobs:
       - name: Install dependencies
         run: pip install google-auth google-auth-oauthlib google-api-python-client pandas python-dateutil
 
-      - name: Write credentials
+      - name: Write credentials and tokens
         env:
           TOKEN_ETNET:    ${{ secrets.TOKEN_ETNET }}
           TOKEN_25DEG:    ${{ secrets.TOKEN_25DEG }}
@@ -28,12 +28,52 @@ jobs:
           SECRET_25DEG:   ${{ secrets.SECRET_25DEG }}
           SECRET_HEALTH:  ${{ secrets.SECRET_HEALTH }}
         run: |
-          echo "$TOKEN_ETNET"   | base64 -d > token_etnet.pickle
-          echo "$TOKEN_25DEG"   | base64 -d > token_25度生活.pickle
-          echo "$TOKEN_HEALTH"  | base64 -d > token_健康好人生.pickle
-          echo "$SECRET_ETNET"  > client_secret_etnet.json
-          echo "$SECRET_25DEG"  > client_secret_25degrees.json
-          echo "$SECRET_HEALTH" > client_secret_health.json
+          # 寫入 client secret 文件
+          if [ -n "$SECRET_ETNET" ]; then
+            echo "$SECRET_ETNET" > client_secret_etnet.json
+            echo "✅ client_secret_etnet.json created"
+          else
+            echo "⚠️ SECRET_ETNET not set"
+          fi
+
+          if [ -n "$SECRET_25DEG" ]; then
+            echo "$SECRET_25DEG" > client_secret_25degrees.json
+            echo "✅ client_secret_25degrees.json created"
+          else
+            echo "⚠️ SECRET_25DEG not set"
+          fi
+
+          if [ -n "$SECRET_HEALTH" ]; then
+            echo "$SECRET_HEALTH" > client_secret_health.json
+            echo "✅ client_secret_health.json created"
+          else
+            echo "⚠️ SECRET_HEALTH not set"
+          fi
+
+          # 解碼並寫入 token 文件
+          if [ -n "$TOKEN_ETNET" ]; then
+            echo "$TOKEN_ETNET" | base64 -d > token_etnet.pickle 2>/dev/null && echo "✅ token_etnet.pickle created" || echo "❌ TOKEN_ETNET is not valid base64"
+          else
+            echo "⚠️ TOKEN_ETNET not set"
+          fi
+
+          if [ -n "$TOKEN_25DEG" ]; then
+            echo "$TOKEN_25DEG" | base64 -d > token_25度生活.pickle 2>/dev/null && echo "✅ token_25度生活.pickle created" || echo "❌ TOKEN_25DEG is not valid base64"
+          else
+            echo "⚠️ TOKEN_25DEG not set"
+          fi
+
+          if [ -n "$TOKEN_HEALTH" ]; then
+            echo "$TOKEN_HEALTH" | base64 -d > token_健康好人生.pickle 2>/dev/null && echo "✅ token_健康好人生.pickle created" || echo "❌ TOKEN_HEALTH is not valid base64"
+          else
+            echo "⚠️ TOKEN_HEALTH not set"
+          fi
+
+      - name: Check token files
+        run: |
+          echo "檢查 token 文件..."
+          ls -la *.pickle 2>/dev/null || echo "沒有找到 pickle 文件"
+          ls -la *.json 2>/dev/null || echo "沒有找到 JSON 文件"
 
       - name: Run analytics script
         run: python etnet_youtube_analytics.py
@@ -41,11 +81,11 @@ jobs:
       - name: Move CSVs to data folder
         run: |
           mkdir -p data
-          mv channel_overview.csv     data/
-          mv daily_analytics.csv      data/
-          mv monthly_analytics.csv    data/
-          mv yearly_analytics.csv     data/
-          mv top_videos_this_month.csv data/
+          mv channel_overview.csv     data/ 2>/dev/null || true
+          mv daily_analytics.csv      data/ 2>/dev/null || true
+          mv monthly_analytics.csv    data/ 2>/dev/null || true
+          mv yearly_analytics.csv     data/ 2>/dev/null || true
+          mv top_videos_this_month.csv data/ 2>/dev/null || true
 
       - name: Commit and push
         run: |
