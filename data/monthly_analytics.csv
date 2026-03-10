@@ -1,46 +1,5 @@
-month,channel,views,engagement_rate
-2025-01,Channel A,100,0.01
-2025-01,Channel B,150,0.015
-2025-01,Channel C,200,0.02
-2025-02,Channel A,120,0.012
-2025-02,Channel B,165,0.016
-2025-02,Channel C,210,0.021
-2025-03,Channel A,130,0.013
-2025-03,Channel B,175,0.018
-2025-03,Channel C,220,0.022
-2025-04,Channel A,140,0.014
-2025-04,Channel B,180,0.018
-2025-04,Channel C,230,0.023
-2025-05,Channel A,150,0.015
-2025-05,Channel B,190,0.019
-2025-05,Channel C,240,0.024
-2025-06,Channel A,160,0.016
-2025-06,Channel B,200,0.02
-2025-06,Channel C,250,0.025
-2025-07,Channel A,170,0.017
-2025-07,Channel B,210,0.021
-2025-07,Channel C,260,0.026
-2025-08,Channel A,180,0.018
-2025-08,Channel B,220,0.022
-2025-08,Channel C,270,0.027
-2025-09,Channel A,190,0.019
-2025-09,Channel B,230,0.023
-2025-09,Channel C,280,0.028
-2025-10,Channel A,200,0.02
-2025-10,Channel B,240,0.024
-2025-10,Channel C,290,0.029
-2025-11,Channel A,210,0.021
-2025-11,Channel B,250,0.025
-2025-11,Channel C,300,0.03
-2025-12,Channel A,220,0.022
-2025-12,Channel B,260,0.026
-2025-12,Channel C,310,0.031
-2026-01,Channel A,230,0.023
-2026-01,Channel B,270,0.027
-2026-01,Channel C,320,0.032
-2026-02,Channel A,240,0.024
-2026-02,Channel B,280,0.028
-2026-02,Channel C,330,0.033
-2026-03,Channel A,250,0.025
-2026-03,Channel B,290,0.029
-2026-03,Channel C,340,0.034
+﻿month,views,likes,comments,watch_minutes,engagement_rate,channel
+2025-01,100000,2000,300,500000,2.3,etnet
+2025-02,120000,2500,350,600000,2.4,etnet
+2025-01,30000,800,100,150000,3.0,25度生活
+2025-02,35000,900,120,175000,2.9,25度生活
