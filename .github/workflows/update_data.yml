@@ -33,51 +33,29 @@ jobs:
           SECRET_25DEG:   ${{ secrets.SECRET_25DEG }}
           SECRET_HEALTH:  ${{ secrets.SECRET_HEALTH }}
         run: |
-          echo "=== Writing client secret files ==="
-          
           if [ -n "$SECRET_ETNET" ]; then
             echo "$SECRET_ETNET" > client_secret_etnet.json
-            echo "OK client_secret_etnet.json"
           fi
-
           if [ -n "$SECRET_25DEG" ]; then
             echo "$SECRET_25DEG" > client_secret_25degrees.json
-            echo "OK client_secret_25degrees.json"
           fi
-
           if [ -n "$SECRET_HEALTH" ]; then
             echo "$SECRET_HEALTH" > client_secret_health.json
-            echo "OK client_secret_health.json"
           fi
-
-          echo "=== Decoding token files ==="
-          
           if [ -n "$TOKEN_ETNET" ]; then
-            echo "$TOKEN_ETNET" | base64 -d > token_etnet.pickle && echo "OK token_etnet.pickle" || echo "FAIL TOKEN_ETNET"
+            echo "$TOKEN_ETNET" | base64 -d > token_etnet.pickle
           fi
-
           if [ -n "$TOKEN_25DEG" ]; then
-            echo "$TOKEN_25DEG" | base64 -d > "token_25度生活.pickle" && echo "OK token_25度生活.pickle" || echo "FAIL TOKEN_25DEG"
+            echo "$TOKEN_25DEG" | base64 -d > "token_25度生活.pickle"
           fi
-
           if [ -n "$TOKEN_HEALTH" ]; then
-            echo "$TOKEN_HEALTH" | base64 -d > "token_健康好人生.pickle" && echo "OK token_健康好人生.pickle" || echo "FAIL TOKEN_HEALTH"
+            echo "$TOKEN_HEALTH" | base64 -d > "token_健康好人生.pickle"
           fi
-
-      - name: Check files
-        run: |
-          echo "=== Check files ==="
-          ls -la *.pickle 2>/dev/null || echo "No pickle files"
-          ls -la *.json 2>/dev/null || echo "No JSON files"
+          ls -la *.pickle *.json 2>/dev/null || true
 
       - name: Run analytics script
         run: python etnet_youtube_analytics.py
         continue-on-error: true
-
-      - name: List generated files
-        run: |
-          echo "=== Generated CSV files ==="
-          ls -la *.csv 2>/dev/null || echo "No CSV files"
 
       - name: Move CSVs to data folder
         run: |
@@ -85,7 +63,6 @@ jobs:
           for f in channel_overview.csv daily_analytics.csv monthly_analytics.csv yearly_analytics.csv top_videos_this_month.csv; do
             if [ -f "$f" ]; then
               cp "$f" data/
-              echo "OK $f"
             fi
           done
           ls -la data/
@@ -94,6 +71,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 清理非追蹤檔案
+          git clean -fd
+          
           git add data/
           
           if git diff --staged --quiet; then
@@ -101,6 +82,18 @@ jobs:
             exit 0
           fi
           
-          git commit -m "Auto-update YouTube data $(date +%Y-%m-%d)"
+          # 先 stash 任何變更
+          git stash
+          
+          # Pull 最新變更
           git pull --rebase origin main
+          
+          # Apply stash
+          git stash pop
+          
+          # Add 同 commit
+          git add data/
+          git commit -m "Auto-update YouTube data $(date +%Y-%m-%d)"
+          
+          # Push
           git push origin main
