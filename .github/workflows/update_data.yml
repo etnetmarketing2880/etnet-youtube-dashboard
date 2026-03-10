@@ -2,8 +2,8 @@ name: Update YouTube Analytics Data
 
 on:
   schedule:
-    - cron: "0 1 * * *"  # 每日 HKT 09:00（UTC 01:00）自動跑
-  workflow_dispatch:       # 手動觸發
+    - cron: "0 1 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -33,55 +33,42 @@ jobs:
           SECRET_25DEG:   ${{ secrets.SECRET_25DEG }}
           SECRET_HEALTH:  ${{ secrets.SECRET_HEALTH }}
         run: |
-          echo "=== 寫入 client secret 文件 ==="
+          echo "=== Writing client secret files ==="
           
           if [ -n "$SECRET_ETNET" ]; then
             echo "$SECRET_ETNET" > client_secret_etnet.json
-            echo "✅ client_secret_etnet.json created"
-          else
-            echo "⚠️ SECRET_ETNET not set"
+            echo "OK client_secret_etnet.json"
           fi
 
           if [ -n "$SECRET_25DEG" ]; then
             echo "$SECRET_25DEG" > client_secret_25degrees.json
-            echo "✅ client_secret_25degrees.json created"
-          else
-            echo "⚠️ SECRET_25DEG not set"
+            echo "OK client_secret_25degrees.json"
           fi
 
           if [ -n "$SECRET_HEALTH" ]; then
             echo "$SECRET_HEALTH" > client_secret_health.json
-            echo "✅ client_secret_health.json created"
-          else
-            echo "⚠️ SECRET_HEALTH not set"
+            echo "OK client_secret_health.json"
           fi
 
-          echo ""
-          echo "=== 解碼並寫入 token 文件 ==="
+          echo "=== Decoding token files ==="
           
           if [ -n "$TOKEN_ETNET" ]; then
-            echo "$TOKEN_ETNET" | base64 -d > token_etnet.pickle 2>/dev/null && echo "✅ token_etnet.pickle created" || echo "❌ TOKEN_ETNET decode failed"
-          else
-            echo "⚠️ TOKEN_ETNET not set"
+            echo "$TOKEN_ETNET" | base64 -d > token_etnet.pickle && echo "OK token_etnet.pickle" || echo "FAIL TOKEN_ETNET"
           fi
 
           if [ -n "$TOKEN_25DEG" ]; then
-            echo "$TOKEN_25DEG" | base64 -d > "token_25度生活.pickle" 2>/dev/null && echo "✅ token_25度生活.pickle created" || echo "❌ TOKEN_25DEG decode failed"
-          else
-            echo "⚠️ TOKEN_25DEG not set"
+            echo "$TOKEN_25DEG" | base64 -d > "token_25度生活.pickle" && echo "OK token_25度生活.pickle" || echo "FAIL TOKEN_25DEG"
           fi
 
           if [ -n "$TOKEN_HEALTH" ]; then
-            echo "$TOKEN_HEALTH" | base64 -d > "token_健康好人生.pickle" 2>/dev/null && echo "✅ token_健康好人生.pickle created" || echo "❌ TOKEN_HEALTH decode failed"
-          else
-            echo "⚠️ TOKEN_HEALTH not set"
+            echo "$TOKEN_HEALTH" | base64 -d > "token_健康好人生.pickle" && echo "OK token_健康好人生.pickle" || echo "FAIL TOKEN_HEALTH"
           fi
 
       - name: Check files
         run: |
-          echo "=== 檢查文件 ==="
-          ls -la *.pickle 2>/dev/null || echo "沒有 pickle 文件"
-          ls -la *.json 2>/dev/null || echo "沒有 JSON 文件"
+          echo "=== Check files ==="
+          ls -la *.pickle 2>/dev/null || echo "No pickle files"
+          ls -la *.json 2>/dev/null || echo "No JSON files"
 
       - name: Run analytics script
         run: python etnet_youtube_analytics.py
@@ -89,8 +76,8 @@ jobs:
 
       - name: List generated files
         run: |
-          echo "=== 生成的 CSV 文件 ==="
-          ls -la *.csv 2>/dev/null || echo "沒有生成 CSV 文件"
+          echo "=== Generated CSV files ==="
+          ls -la *.csv 2>/dev/null || echo "No CSV files"
 
       - name: Move CSVs to data folder
         run: |
@@ -98,21 +85,22 @@ jobs:
           for f in channel_overview.csv daily_analytics.csv monthly_analytics.csv yearly_analytics.csv top_videos_this_month.csv; do
             if [ -f "$f" ]; then
               cp "$f" data/
-              echo "✅ 已複製 $f 到 data/"
-            else
-              echo "⚠️ $f 不存在，跳過"
+              echo "OK $f"
             fi
           done
-          
-          echo ""
-          echo "=== data 文件夾內容 ==="
           ls -la data/
 
       - name: Commit and push
         run: |
-          git config user.name  "github-actions[bot]"
+          git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/
-          git diff --staged --quiet || git commit -m "Auto-update YouTube data $(date +%Y-%m-%d)"
-          git pull --rebase
-          git push
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          
+          git commit -m "Auto-update YouTube data $(date +%Y-%m-%d)"
+          git pull --rebase origin main
+          git push origin main
